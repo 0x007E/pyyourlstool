@@ -9,11 +9,20 @@ from pathlib import Path
 from types import SimpleNamespace
 
 class TinyLink:
-    def __init__(self, api: str, token: str):
+    def __init__(self, api: str, token: str, verbose: bool=False):
         self.api = api
         self.token = token
+        self.verbose = verbose
     
-    def short(self, url: str, validate: bool=False, keyword: str=str(), format: str="json") -> str:
+    @property
+    def verbose(self) -> bool:
+        return self.__verbose
+    
+    @verbose.setter
+    def verbose(self, value) -> bool:
+        self.__verbose = value
+
+    def short(self, url: str, check: bool=False, keyword: str=str(), format: str="json") -> str:
         timestamp=int(time.time())
         data = {
             "timestamp": f"{timestamp}",
@@ -23,11 +32,14 @@ class TinyLink:
             "format": f"{format}"
             }
         
+        if(self.verbose):
+            print(data)
+
         if(keyword):
             data.update({ "keyword": f"{keyword}" })
         
-        if(validate):
-            self.validate_url(url)
+        if(check):
+            self.check_url(url)
             
         echo = json.loads(requests.post(url = f"{self.api}", data = data, headers={'Accept': 'application/json'}).text, object_hook=lambda d: SimpleNamespace(**d))
     
@@ -36,7 +48,7 @@ class TinyLink:
         else:
             return str()
 
-    def expand(self, url: str, validate: bool=False, format: str="json") -> str:
+    def expand(self, url: str, check: bool=False, format: str="json") -> str:
         timestamp=int(time.time())
         data = {
             "timestamp": f"{timestamp}",
@@ -45,9 +57,12 @@ class TinyLink:
             "shorturl": f"{url}",
             "format": f"{format}"
             }
-        
-        if(validate):
-            self.validate_url(url)
+
+        if(self.verbose):
+            print(data)
+
+        if(check):
+            self.check_url(url)
 
         echo = json.loads(requests.post(url = f"{self.api}", data = data, headers={'Accept': 'application/json'}).text, object_hook=lambda d: SimpleNamespace(**d))
     
@@ -56,7 +71,7 @@ class TinyLink:
         else:
             return str()
 
-    def validate_url(self, url: str, status: int=[ 200, 301, 302, 303 ]) -> bool:
+    def check_url(self, url: str, status: int=[ 200, 301, 302, 303 ]) -> bool:
         try:
             if(not (requests.get(url = url).status_code in status)):
                 raise ConnectionRefusedError(url)
@@ -75,24 +90,27 @@ def tinylink_main(argv):
     argumentParser.add_argument("-k", "--key", required=True, help="Secret YOURLS signature token")
     argumentParser.add_argument("-u", "--url", required=True, help="URL to be shorten/expanded")
     argumentParser.add_argument("-n", "--name", help="Prefix for URL that should be shorten")
-    argumentParser.add_argument("-v", "--validate", action="store_true", help="Check if URL is accessible (Status 200)")
+    argumentParser.add_argument("-c", "--check", action="store_true", help="Check if URL is accessible (Status 200)")
     argumentParser.add_argument("-e", "--expand", action="store_true", help="Expand a shorten URL")
     argumentParser.add_argument("-s", "--short", action="store_true", help="Short a given URL")
+    argumentParser.add_argument("-v", "--verbose", action="store_true", help="Show whats going on")
 
     args = argumentParser.parse_args()
-    print(filename, "args=%s" % args)
+
+    if(args.verbose):
+        print(filename, "args=%s" % args)
 
     tinylink = TinyLink(args.api, args.key)
     name = str()
 
-    validate: bool = args.validate
+    check: bool = args.check
     name: bool = args.name
 
     try:
         if(args.expand):
-            print(tinylink.expand(args.url, validate=validate))
+            print(tinylink.expand(args.url, check=check))
         elif(args.short):
-            print(tinylink.short(args.url, validate=validate, keyword=name))
+            print(tinylink.short(args.url, check=check, keyword=name))
     except ConnectionRefusedError as ex:
         print(f"{ConnectionRefusedError.__name__}->{ex.strerror}")
     except ConnectionError as ex:
